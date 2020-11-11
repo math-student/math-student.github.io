@@ -1,0 +1,473 @@
+---
+title: |
+  \vspace{5cm} <center> GIS 494 </center>
+  <center> Multivariate Statistics for the Social Sciences </center>
+  <center> Midterm </center>
+  <center> The State Determinants of COVID-19 </center>
+author: "Nathan A. Nguyen"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE, eval = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(formatR)
+library(kableExtra)
+library(psych)
+library(gridExtra)
+library(jtools)
+library(ggcorrplot)
+library(ggrepel)
+library(usdata)
+library(usmap)
+library(ggpubr)
+setwd('C:\\Users\\natha\\Classes\\Current Classes\\GIS 494 Topic - Multivariate Statistics for Social Sciences\\Midterm')
+```
+
+\newpage
+
+## Question 1
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 10}
+data <- read.csv('state_covid.csv', header = TRUE,
+                 fileEncoding = 'UTF-8-BOM', na = c("NAN", "", "nan"))
+
+# any(is.na(data))
+# which(is.na(data), arr.ind = TRUE)
+
+# make Covid cases the 4th column (easier to look at) and drop regions
+data2 <- data %>% select(1:3, COVID_cases_per_100k, everything()) %>%
+  select(-c(region, region_short))
+
+kable(data2[1:8, 1:4], caption = "Sample of State Data", format = "markdown") %>%
+  kable_styling(position = "center")
+
+numeric_variables <- data2 %>% select_if(is.numeric)
+
+cor_matrix_1 <- cor(numeric_variables, use = "complete.obs", method = "pearson")
+
+p1 <- ggcorrplot(cor_matrix_1, method = "square", hc.order = TRUE,
+                 type = "full", outline.col = "white",
+                 colors = c("red", "white", "blue"), lab = TRUE) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(caption = "Figure 1")
+p1
+
+# All complete cases. 
+# any(is.na(data2$Republican_shr_2016))
+# any(is.na(data2$poverty))
+# any(is.na(data2$gini_2010))
+# any(is.na(data2$COVID_cases_per_100k))
+```
+
+\newpage
+
+Based off of this matrix my selection of predictors $X_{i}= \{X_{1},X_{2},X_{3} \}$ will be:
+
+$$
+\begin{aligned}
+X_{1} &= Percentage \ of \ Population \ Republican \\
+X_{2} &= Poverty \\
+X_{3} &= Gini \ Coefficient
+\end{aligned}
+$$
+
+I chose this set of predictors because we the column sample size does not represent state population, and I didn't entirely know what that column represented. I'm assuming it's the number of people surveyed but with regards, I'm not sure of. Furthermore, epidemiological studies and virology suggests that SARS-CoV2 pathogenicity is is not affected by weather. The president claimed that COVID-19 would go away as the summer months approached. That proved to be empirically false, so that is why I did not include temperature celsius as a predictor, despite having one of the higher correlation coefficient values with respect to COVID-19 cases.
+
+Given this data set, I feel that the three predictors that I chose are appropriate because:
+
+1.  Many of the anti-mask, anti-science, and anti-lock down individuals seem to be Republicans.
+2.  Epidemiological surveys have demonstrated that marginalised groups are suffering the worse. Of course there are other underlying factors involved that this data set does not contain, e.g., comorbidities, death rates, rate of infection, etc.
+3.  Though difficult to interpret, the Gini coefficient is a measure in the distribution of wealth or income. The Gini coefficient is rather flexible, as it can be a measure for anything, so in this case I will assume that it's a measure of income distribution.
+
+\newpage
+
+### Measures of Central Tendency
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+
+response <- data2$COVID_cases_per_100k # our response variable is COVID-19 cases
+response_mean <- mean(response)
+response_SD <- sd(response)
+blah1 <- c(response_mean, response_SD); blah1
+  
+X1 <- data2$Republican_shr_2016 # predictor 1 is republican percentage
+X1_mean <- mean(X1)
+X1_SD <- sd(X1)
+blah2 <- c(X1_mean, X1_SD); blah2
+# print(paste0("X1_mean:", X1_mean)) # eh not necessary
+
+X2 <- data2$poverty # predictor 2 is poverty rate
+X2_mean <- mean(X2)
+X2_SD <- sd(X2)
+blah3 <- c(X2_mean, X2_SD); blah3 
+
+X3 <- data2$gini_2010 # predictor 3 is the Gini Coefficient
+X3_mean <- mean(X3)
+X3_SD <- sd(X3)
+blah4 <- c(X3_mean, X3_SD); blah4
+```
+
+The average number of COVID-19 cases per 100k is $\bar{Y} =$ `r round(response_mean, 3)` and the standard deviation $s_{Y}$ = `r round(response_SD, 3)`. The average percentage of Republican population proportion across states is $\bar{X_{1}} =$ `r round(X1_mean, 3)` and the standard deviation is $s_{X_{1}} =$ `r round(X1_SD, 3)`.
+
+The average poverty rate $\bar{X_{2}} =$ `r round(X2_mean, 3)` and the standard deviation $s_{X_{2}} =$ `r round(X2_SD, 3)`
+
+The average Gini coefficient is $\bar{X_{3}} =$ `r round(X3_mean, 3)` and the standard deviation $s_{X_{3}} =$ `r round(X3_SD, 3)`
+
+Please refer to the correlation plot above for correlation coefficients. They are already calculated and labeled on the plot.
+
+\newpage
+
+## Question 2
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+data2$state_short <- state2abbr(data2$STATE_NAME)
+
+p2 <- ggplot(data = data2, aes(x = poverty, y = COVID_cases_per_100k)) +
+  geom_point(aes(color = STATE_NAME), size = 2.2) +
+  labs(x = "Poverty Rate", y = "COVID-19 Cases Per 100k",
+       title = "COVID-19 Cases with Respect to Poverty Rates",
+       caption = "Figure 2") + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+  geom_text_repel(aes(label = state_short), size = 3)
+
+data2$state <- data2$state_short
+
+p3 <- plot_usmap(data = data2, values = "COVID_cases_per_100k", color = "black") +
+  scale_fill_continuous(low = "cornsilk", high = "firebrick4",
+                        label = scales::comma, name = "COVID-19 Cases Per 100k \n(standardised)") +
+  theme(legend.position = "right", plot.title = element_text(hjust = 0.5))+
+  labs(title = "COVID-19 Cases in The United States",
+       caption = "Figure 3")
+
+p4 <- ggplot(data = data2, aes(x = gini_2010, y = COVID_cases_per_100k)) +
+  geom_point(aes(color = STATE_NAME), size = 2.2) +
+  labs(x = "Gini coefficient", y = "COVID-19 Cases Per 100k",
+       title = "COVID-19 Cases with Respect to Gini",
+       caption = "Figure 4") + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+  geom_text_repel(aes(label = state_short), size = 3)
+
+p5 <- ggplot(data = data2, aes(x = Republican_shr_2016, y = COVID_cases_per_100k)) +
+  geom_point(aes(color = STATE_NAME), size = 2.2) +
+  labs(x = "Republican Proportion", y = "COVID-19 Cases Per 100k",
+       title = "COVID-19 Cases with Respect to Republican Proportion",
+       caption = "Figure 5") + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+  geom_text_repel(aes(label = state_short), size = 3)
+
+p6 <- ggplot(data = data2, aes(x = college_grad_rate, y = COVID_cases_per_100k)) +
+  geom_point(aes(color = STATE_NAME), size = 2.2) +
+  labs(x = "College", y = "COVID-19 Cases Per 100k",
+       title = "COVID-19 Cases with Respect to College Graduation Rate",
+       caption = "Figure 5") + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+  geom_text_repel(aes(label = state_short), size = 3)
+p2; p3; p4; p5; p6                       
+```
+
+\newpage
+
+## Question 3 Constructing Models
+
+### Hierarchical Approach (Let's begin with first-order 3-predictors model)
+
+We we determine whether or not we need all three predictors by using the General Linear F-test.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+# This is the full model
+model_1 <- lm(COVID_cases_per_100k ~ (Republican_shr_2016 + poverty + gini_2010), data = data2)
+
+data2$predicted <- predict(model_1)
+data2$residuals <- residuals(model_1)
+# Also, anova(model_1) tells us marginal increase in SSR is not significant for X2
+# Normal R2 (The _F indicated the full model)
+SSR_F <- sum((data2$predicted - response_mean)^2)
+SSE_F <- sum((response - data2$predicted)^2)
+SSTO_F <- SSR_F + SSE_F 
+R2 <- SSR_F/SSTO_F
+
+# Adjusted R2
+n <- dim(data2)[1]
+k <- 3 # number of predictors (X1 + X2 + X3)
+R2_adj <- 1-((1-R2)*(n-1)/(n-k-1))
+c(R2, R2_adj)
+summ(model_1, digits = getOption("jtools-digits", 4));
+```
+
+The expected response function is
+
+$$
+\begin{aligned}
+E\{Y\} = \beta_{0} + \beta_{1}X_{1} + \beta_{2}X_{2} + \beta_{3}X_{3}
+\end{aligned}
+$$
+
+The fitted regression function is
+
+$$
+\begin{aligned}
+\hat{Y} &= b_{0} + b_{1}x_{1} + b_{2}x_{2} + b_{3}x_{3} \\
+\hat{Y} &= -5844.70 + 30.98x_{1} - 215.25x_{2} + 14201.62x_{3}
+\end{aligned}
+$$
+
+We can already tell that we can remove $X_{2} =$ poverty ($p>0.05$), but let's continue with removing $X_{3}$ first.
+
+\newpage
+
+### Removing X3 (first-order, two predictor model)
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+model_2 <- lm(COVID_cases_per_100k ~ (Republican_shr_2016 + poverty), data = data2)
+data2$predicted_2 <- predict(model_2)
+data2$residuals_2 <- residuals(model_2)
+SSE_R <- sum((response - data2$predicted_2)^2)
+
+summ(model_2, digits = getOption("jtools-digits", 4))
+```
+
+The expected response function is
+
+$$
+\begin{aligned}
+E\{Y\} = \beta_{0} + \beta_{1}X_{1} + \beta_{2}X{2}
+\end{aligned}
+$$
+
+The fitted regression model is
+
+$$
+\begin{aligned}
+\hat{Y} &= b_{0} + b_{1}x_{1} + b_{2}x_{2} \\
+\hat{Y} &= 718.13 + 18.03x_{1} + 6303.98x_{2}
+\end{aligned}
+$$
+
+This model does not provide a good fit, as seen by the low $R^{2}$ and $R_{a}^2$. Furthermore, all three estimated regression coefficients, when controlling for $\alpha < 0.05$ are not statistically significant.
+
+\newpage
+
+### First Order 2-predictors (X1 and X3)
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+model_3 <- lm(COVID_cases_per_100k ~ (Republican_shr_2016 + gini_2010), data = data2)
+summ(model_3, digits = getOption("jtools-digits", 4))
+```
+
+The expected response function is
+
+$$
+\begin{aligned}
+E\{Y\} = \beta_{0} + \beta_{1}X_{1} + \beta_{3}X_{3}
+\end{aligned}
+$$
+
+The fitted regression model is
+
+$$
+\begin{aligned}
+\hat{Y} &= b_{0} + b_{1}x_{1} + b_{3}x_{3} \\
+\hat{Y} &= -5820.01 + 30.72x_{1} + 14044.18x_{3}
+\end{aligned}
+$$
+
+This model 3 provides a better fit than model 2. Both $R^2$ and $R_{a}^2$ suggests that only Republican population percentage and the Gini coefficient account for 24$\%$ of the variation in the response, which is better than model 2's only 11$\%$. Furthermore, if we look at model 1's $R^2 = 0.24$ and $R_{a}^2 = 0.19$ and compare it to the current model's (model 3) $R^2 = 0.24$ and $R_{a}^2 = 0.21$ we observe that the adjusted are square is still on the order of 20$\%$ variation, unlike in model 2.
+
+\newpage
+
+### Simple Linear Regression (Single Predictor Variable Removing X2 (least significant) and X3)
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+model_4 <- lm(COVID_cases_per_100k ~ Republican_shr_2016, data = data2)
+summ(model_4, digits = getOption("jtools-digits", 4))
+```
+
+The expected model is
+
+$$
+\begin{aligned}
+E\{Y\} = \beta_{0} + \beta_{1}X_{1}
+\end{aligned}
+$$
+
+The fitted regression model is
+
+$$
+\begin{aligned}
+\hat{Y} &= b_{0} + b_{1}x_{1} \\
+\hat{Y} &= 1092.96 + 23.17x_{1}
+\end{aligned}
+$$
+
+I used the Republican proportion as the single predictor because it seems to be the strongest predictor, based off of it having the highest strongest correlation coefficient. Having only Republican percentage only accounts for about 10$\%$ of the response variation.
+
+The next two models will be a single predictor using poverty and Gini coefficient as the sole predictor. I will not go into any further detail other than just printing the summary of the models, like I've done for the last several models. The following two predictors are the weakest, on their own.
+
+I note that we could have also taken the Analysis of Variance (ANOVA) approach as well).
+
+\newpage
+
+### Single Predictor X2 = Poverty
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+model_5 <- lm(COVID_cases_per_100k ~ poverty, data = data2)
+summ(model_5, digits = getOption("jtools-digits", 4))
+```
+
+\newpage
+
+### Single Predictor X3 = Gini Coefficient
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+model_6 <- lm(COVID_cases_per_100k ~ gini_2010, data = data2)
+summ(model_6, digits = getOption("jtools-digits", 4))
+```
+
+\newpage
+
+### Example of the General Linear F Test
+
+Let's see whether or not we can remove $X_{3} = Gini$ from the multiple regression model. We call refer to model 1 (first-order, 3 predictors) now as the Full model, and we will refer to model 2 (first-order, two predictors) now as the reduced model. Our goal is to determine whether or not the reduced model, where we remove the Gini coefficient, will be sufficient in explaining the variation in our response, COVID-19 cases per 100-thousand persons. Obviously, we already know this from the p-values, but I think it's good to practice, at least once, a more strict formal test.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE}
+SSR_given <- SSE_R - SSE_F
+F_star <- (SSR_given/1) * ((n-4)/(SSE_F))
+tolerance <- qf(0.95, 1, n-4)
+c(F_star, tolerance)
+F_star < tolerance
+p_value <- pf(F_star, 1, n-4, lower.tail = FALSE)
+p_value
+
+decision_rule <- function(F_star, tolerance){
+  if(F_star <= tolerance)
+  {
+    print("Conclude the null")
+  }
+  else
+    {
+    print("Reject the null hypothesis and conclude the alternative")
+  }
+}
+decision_rule(F_star, tolerance)
+```
+
+1.  Assumptions: $$
+    \begin{aligned}
+    \epsilon \ i.i.d \sim N(0,\sigma^{2})
+    \end{aligned}
+    $$
+
+2.  Hypothesis: $$
+    \begin{aligned}
+    H_{0}: \beta_{3} = 0, \ H_{a}: \beta_{3} \neq 0
+    \end{aligned}
+    $$ where $\beta_{3}$ is the coefficient for $X_{3}$ in the following regression model: $$
+    \begin{aligned}
+    E\{Y\} = \beta_{0} + \beta_{1}X_{1} + \beta_{2}X_{2} + \beta_{3}X_{3}
+    \end{aligned}
+    $$
+
+3.  Test Statistic: $$
+    \begin{aligned}
+    F^{*} = \frac{MSR}{MSE} = \frac{SSE(R) - SSE(F)}{df_{R} - df_{F}} \div \frac{SSE(F)}{df_{F}}
+    \end{aligned}
+    $$
+
+4.  P-Value: $$
+    \begin{aligned}
+    p = 0.02 > 0.05 = \alpha
+    \end{aligned}
+    $$
+
+5.  Conclusion:
+
+    Since $p = 0.02 > 0.05 = \alpha$, there is sufficient evidence that allows us to reject $H_{0}$ and conclude the alternative hypothesis: $\beta_{3} \neq 0$, which means that we should not drop $X_{3}$ from the regression model.
+
+\newpage
+
+### Diagnostic plots (Only basic Residuals, no standard residuals, leverage etc)
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, message = FALSE, fig.height = 9}
+d1 <- ggplot(data2, aes(x = predicted, y = residuals)) +
+  geom_point() + geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE, color = "purple") + 
+  labs(title = "Residuals vs. Predicted Model 1 (Full Model)", caption = "Figure 6") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+q1 <- ggplot(data2, aes(sample = residuals)) +
+  stat_qq() + ggtitle("Model 1 QQ") +
+  labs(caption = "Figure 8") +
+  geom_qq_line(color = 'red', size = 1.05) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+d2 <- ggplot(data2, aes(x = predicted_2, y = residuals_2)) +
+  geom_point() + geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE, color = "purple") +
+  labs(title = "Residuals vs. Predicted Model 2 (Reduced Model)", caption = "Figure 7") +
+  theme(plot.title = element_text(hjust = 0.5))
+q2 <- ggplot(data2, aes(sample = residuals_2)) +
+  stat_qq() + ggtitle("Model 2 QQ") +
+  labs(caption = "Figure 9") +
+  geom_qq_line(color = 'red', size = 1.05) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggarrange(d1, d2, nrow = 2); ggarrange(q1, q2, nrow = 2)
+```
+
+\newpage
+
+```{r, eval = FALSE, echo = FALSE, warning = FALSE, message = FALSE}
+d3 <- ggplot(data2, aes(x = Republican_shr_2016, y = residuals)) +
+  geom_point() + geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE, color = "purple") + 
+  labs(title = "Model 1 Residual vs. Republican Proportion", caption = "Figure 6") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+d4 <- ggplot(data2, aes(x = poverty, y = residuals)) +
+  geom_point() + geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE, color = "purple") + 
+  labs(title = "Model 1 Residual vs. Poverty", caption = "Figure 6") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+d5 <- ggplot(data2, aes(x = Republican_shr_2016, y = residuals)) +
+  geom_point() + geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE, color = "purple") + 
+  labs(title = "Model 1 Residual vs. Gini", caption = "Figure 6") +
+  theme(plot.title = element_text(hjust = 0.5))
+d3; d4; d5
+```
+
+\newpage
+
+## Discussion
+
+I asked doctor Connor (Dylan Connor) how to interpret the estimated regression coefficient $\beta_{3}$ since Gini coefficients are bounded $0 \leq G \leq 1$ where $G$ represents the Gini coefficient. He brought it to my attention that perhaps it would be better to standardize $G$ by doing the following:
+
+$$
+\begin{aligned}
+G^{*} = \frac{G-\bar{G}}{s_{G}}
+\end{aligned}
+$$
+
+I will not be including this in the report because I'm not sure if I have to standardize all variables involved, response and predictors. I am also unsure how to interpret the estimated regression coefficients in the standardized model as well. Furthermore, if I only standardize $G$, how do I interpret the other estimated regression coefficients with respect to each other, which leads me to suspect that we do have to standardize everything.
+
+I will continue discussions acknowledging this fact.
+
+Although I'd like to say that we can come to a conclusive conclusion about what factors are involved when it comes to the amount of COVID-19 cases, given this data set, I don't think we have enough predictors. I think we need to take a look at what type of education people have received throughout their lives, e.g., basic biology, basic public health education etc. I will note that it does appear that as college rate picks up, we see a weak trend in the reduction of COVID-19 cases, but can we say definitely that they are related -- I am not sure. Again, I think it comes down to quality of education in the K-12 levels of an individual's life.
+
+Furthermore, I think it would be extremely helpful to have epidemiological data included as well, such as comorbidities, e.g., diabetes, preexisting respiratory conditions etc. We know that preexisting conditions increase the risk of infection.
+
+Without a doubt, there is an association between the proportion of a state's population that identifies as Republican and the increase in COVID-19 cases. The District of Columbia seems to be an outlier though. I wonder why. Perhaps it's due to the fact that DC's population is small, so the cases per 100k there are weighted more more compared to say California that has a population if nearly 40 million. I bet if we remove DC, we'd see an increase in $R^2$. Would that be an appropriate p-hacking maneuver? The District of Columbia is not a state. I don't find it surprising at all that Republicans states share the higher burden of COVID-19 cases; however, I will say that just because someone identifies as a Republican that does not mean it is a predictor for COVID-19 cases.
+
+Disease transmission is a rather complex dynamical system. We need to take into account age-specific behavioral patterns (we know that younger people are pulling most of the new cases). I bet many of the younger people who go out and refuse to social distance may not actually identify as Republicans. They are just ignorant and/or selfish. We also need to take into account many other factors, which is where statistical modelling begins to fall apart. Then enters the world of dynamical systems modelling (ordinary differential equations, partial differential equations, time-delay, diffusion models etc).
+
+I think taking a look at poverty and wealth distribution was worthwhile because, well if you don't have money, you've got to go to work. That increases the risk of infection, whereas an affluent individual may be able to afford time off, or even work from home. Many working class individuals don't have this luxury.
+
+A lot more can be said, but this is just a midterm, so I'll end it here.
